@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RGB Image Clustering</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(120deg, #e0e7ff 0%, #f7f7f7 100%);
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 40px auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 24px rgba(80,80,180,0.10);
+      padding: 32px 24px;
+      border: 2px solid #a5b4fc;
+    }
+    h1 {
+      text-align: center;
+      color: #4f46e5;
+      margin-bottom: 24px;
+      letter-spacing: 1px;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .controls input[type="file"] {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #a5b4fc;
+      background: #eef2ff;
+      color: #3730a3;
+    }
+    .controls label {
+      font-weight: 500;
+      color: #3730a3;
+    }
+    .controls select {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #a5b4fc;
+      font-size: 1rem;
+      background: #eef2ff;
+      color: #3730a3;
+    }
+    .controls button {
+      padding: 8px 18px;
+      border-radius: 6px;
+      border: none;
+      background: linear-gradient(90deg, #6366f1 60%, #818cf8 100%);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(80,80,180,0.10);
+      transition: background 0.2s;
+    }
+    .controls button:hover {
+      background: linear-gradient(90deg, #818cf8 60%, #6366f1 100%);
+    }
+    .displays {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    .display-box {
+      background: linear-gradient(120deg, #eef2ff 0%, #fafafa 100%);
+      border-radius: 14px;
+      box-shadow: 0 1px 12px rgba(80,80,180,0.07);
+      padding: 16px;
+      min-width: 320px;
+      max-width: 480px;
+      flex: 1 1 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1.5px solid #a5b4fc;
+    }
+    .display-box h2 {
+      font-size: 1.1rem;
+      color: #6366f1;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    #plot3d {
+      width: 100%;
+      height: 340px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 8px rgba(80,80,180,0.07);
+      border: 1px solid #a5b4fc;
+    }
+    .images-row {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .images-row img {
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(80,80,180,0.09);
+      max-width: 180px;
+      max-height: 180px;
+      background: #e0e7ff;
+      border: 1.5px solid #a5b4fc;
+    }
+    .final-img {
+      margin-top: 12px;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(80,80,180,0.09);
+      max-width: 320px;
+      max-height: 320px;
+      background: #e0e7ff;
+      border: 1.5px solid #a5b4fc;
+    }
+    .loading {
+      text-align: center;
+      color: #6366f1;
+      font-size: 1.1rem;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RGB Image Clustering</h1>
+    <div class="controls">
+      <input type="file" id="imgInput" accept="image/*">
+      <label for="clusters">Clusters:</label>
+      <select id="clusters">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+      <button id="runBtn">Run Clustering</button>
+    </div>
+    <div id="loading" class="loading" style="display:none;">Processing...</div>
+    <div class="displays">
+      <div class="display-box">
+        <h2>1. 3D RGB Plot with Clusters</h2>
+        <div id="plot3d"></div>
+      </div>
+      <div class="display-box">
+        <h2>2. Clustered Image</h2>
+        <canvas id="finalCanvas" class="final-img"></canvas>
+      </div>
+      <div class="display-box">
+        <h2>3. Original vs Clustered</h2>
+        <div class="images-row">
+          <img id="originalImg" src="#" alt="Original" style="display:none;">
+          <img id="clusteredImg" src="#" alt="Clustered" style="display:none;">
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Utility Functions ---
+    function getRandomIndices(total, sampleSize) {
+      // Evenly sample sampleSize indices from total
+      if (sampleSize >= total) return Array.from({length: total}, (_, i) => i);
+      const step = total / sampleSize;
+      let indices = [];
+      for (let i = 0; i < sampleSize; i++) {
+        indices.push(Math.floor(i * step));
+      }
+      return indices;
+    }
+    function rgbToStr(rgb) {
+      return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    }
+    function randomColor() {
+      // For cluster display
+      return [
+        Math.floor(80 + Math.random() * 175),
+        Math.floor(80 + Math.random() * 175),
+        Math.floor(80 + Math.random() * 175)
+      ];
+    }
+    // --- K-Means Implementation ---
+    function kmeans(data, k, maxIter=30) {
+      // data: [{rgb: [r,g,b], origIdx: i}]
+      // Returns: {labels: [], centroids: []}
+      let centroids = [];
+      let used = new Set();
+      while (centroids.length < k) {
+        let idx = Math.floor(Math.random() * data.length);
+        if (!used.has(idx)) {
+          centroids.push([...data[idx].rgb]);
+          used.add(idx);
+        }
+      }
+      let labels = new Array(data.length).fill(0);
+      for (let iter = 0; iter < maxIter; iter++) {
+        // Assign
+        for (let i = 0; i < data.length; i++) {
+          let minDist = Infinity, minIdx = 0;
+          for (let j = 0; j < k; j++) {
+            let d = 0;
+            for (let c = 0; c < 3; c++) d += (data[i].rgb[c] - centroids[j][c]) ** 2;
+            if (d < minDist) { minDist = d; minIdx = j; }
+          }
+          labels[i] = minIdx;
+        }
+        // Update
+        let sums = Array.from({length: k}, () => [0,0,0]);
+        let counts = Array(k).fill(0);
+        for (let i = 0; i < data.length; i++) {
+          let lbl = labels[i];
+          for (let c = 0; c < 3; c++) sums[lbl][c] += data[i].rgb[c];
+          counts[lbl]++;
+        }
+        for (let j = 0; j < k; j++) {
+          if (counts[j] === 0) continue;
+          for (let c = 0; c < 3; c++) centroids[j][c] = sums[j][c] / counts[j];
+        }
+      }
+      return {labels, centroids};
+    }
+    // --- Main Logic ---
+    let imgData = null, imgWidth = 0, imgHeight = 0, origPixels = null;
+    document.getElementById('imgInput').addEventListener('change', handleImage);
+    document.getElementById('runBtn').addEventListener('click', runClustering);
+    function handleImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          imgWidth = img.width;
+          imgHeight = img.height;
+          const canvas = document.createElement('canvas');
+          canvas.width = imgWidth;
+          canvas.height = imgHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          imgData = ctx.getImageData(0, 0, imgWidth, imgHeight);
+          origPixels = new Uint8ClampedArray(imgData.data);
+          document.getElementById('originalImg').src = canvas.toDataURL();
+          document.getElementById('originalImg').style.display = 'block';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    function runClustering() {
+      if (!imgData) return;
+      document.getElementById('loading').style.display = 'block';
+      setTimeout(() => {
+        const k = parseInt(document.getElementById('clusters').value);
+        // Sample up to 20k pixels evenly
+        const totalPixels = imgWidth * imgHeight;
+        const sampleSize = Math.min(20000, totalPixels);
+        const indices = getRandomIndices(totalPixels, sampleSize);
+        let data = [];
+        for (let idx of indices) {
+          let i = idx * 4;
+          let r = imgData.data[i], g = imgData.data[i+1], b = imgData.data[i+2];
+          data.push({rgb: [r/255, g/255, b/255], origIdx: idx});
+        }
+        // K-means
+        const {labels, centroids} = kmeans(data, k);
+        // --- 1. 3D Plot ---
+        let xs = [], ys = [], zs = [], colors = [], clusterColors = [];
+        for (let i = 0; i < data.length; i++) {
+          xs.push(data[i].rgb[0]);
+          ys.push(data[i].rgb[1]);
+          zs.push(data[i].rgb[2]);
+          colors.push(rgbToStr([
+            Math.round(data[i].rgb[0]*255),
+            Math.round(data[i].rgb[1]*255),
+            Math.round(data[i].rgb[2]*255)
+          ]));
+          clusterColors[labels[i]] = clusterColors[labels[i]] || rgbToStr(randomColor());
+        }
+        let centroidXs = centroids.map(c => c[0]);
+        let centroidYs = centroids.map(c => c[1]);
+        let centroidZs = centroids.map(c => c[2]);
+        let centroidColors = centroids.map((c, i) => clusterColors[i]);
+        Plotly.newPlot('plot3d', [
+          {
+            x: xs, y: ys, z: zs,
+            mode: 'markers',
+            type: 'scatter3d',
+            marker: {
+              size: 3,
+              color: colors,
+              opacity: 0.7
+            },
+            name: 'Pixels'
+          },
+          {
+            x: centroidXs, y: centroidYs, z: centroidZs,
+            mode: 'markers',
+            type: 'scatter3d',
+            marker: {
+              size: 28,
+              color: centroidColors,
+              symbol: 'star-diamond',
+              opacity: 1,
+              line: {
+                color: 'black',
+                width: 4
+              }
+            },
+            name: 'Centroids'
+          }
+        ], {
+          margin: {l:0, r:0, b:0, t:0},
+          scene: {
+            xaxis: {title: 'R', range: [0,1]},
+            yaxis: {title: 'G', range: [0,1]},
+            zaxis: {title: 'B', range: [0,1]}
+          },
+          showlegend: false
+        });
+        // --- 2. Clustered Image ---
+        const finalCanvas = document.getElementById('finalCanvas');
+        finalCanvas.width = imgWidth;
+        finalCanvas.height = imgHeight;
+        const finalCtx = finalCanvas.getContext('2d');
+        let finalImgData = finalCtx.createImageData(imgWidth, imgHeight);
+        // Assign each pixel to nearest centroid
+        for (let i = 0; i < imgWidth * imgHeight; i++) {
+          let r = origPixels[i*4], g = origPixels[i*4+1], b = origPixels[i*4+2];
+          let rgbNorm = [r/255, g/255, b/255];
+          let minDist = Infinity, minIdx = 0;
+          for (let j = 0; j < k; j++) {
+            let d = 0;
+            for (let c = 0; c < 3; c++) d += (rgbNorm[c] - centroids[j][c]) ** 2;
+            if (d < minDist) { minDist = d; minIdx = j; }
+          }
+          let centroid = centroids[minIdx];
+          finalImgData.data[i*4] = Math.round(centroid[0]*255);
+          finalImgData.data[i*4+1] = Math.round(centroid[1]*255);
+          finalImgData.data[i*4+2] = Math.round(centroid[2]*255);
+          finalImgData.data[i*4+3] = 255;
+        }
+        finalCtx.putImageData(finalImgData, 0, 0);
+        // --- 3. Side-by-side images ---
+        document.getElementById('clusteredImg').src = finalCanvas.toDataURL();
+        document.getElementById('clusteredImg').style.display = 'block';
+        document.getElementById('loading').style.display = 'none';
+      }, 100);
+    }
+  </script>
+</body>
+</html>
